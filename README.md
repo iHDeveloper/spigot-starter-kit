@@ -7,6 +7,7 @@ The goal of this starter kit is to help make spigot plugin easy in development a
 ### Table of Contents
 - [Getting Started](#getting-started)
 - [Requirements](#requirements)
+- [Kotlin Support](#kotlin-support)
 - [Rename the plugin](#rename-the-plugin)
 - [Build the plugin](#build-the-plugin)
 - [Test the plugin](#test-the-plugin)
@@ -23,6 +24,10 @@ The goal of this starter kit is to help make spigot plugin easy in development a
 
 # Requirements
 **Reference:** [[SpigotMC] Build Tools - Prerequisties](https://www.spigotmc.org/wiki/buildtools/#prerequisites)
+
+# Kotlin Support
+If you want to the kit to have the [Kotlin](https://kotlinlang.org/) supported by default.
+Then, rename `build.kotlin.gradle.kts` to `build.gradle.kts`
 
 ### Windows
 - [Git](https://gitforwindows.org/)
