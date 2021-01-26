@@ -134,6 +134,9 @@ tasks {
      *  Setup the workspace to develop the plugin
      */
     register("setup") {
+        if (!buildTools.useLocalDependency) {
+            dependsOn("run-build-tools")
+        }
 
         // Build the plugin to be able to test it
         dependsOn("build-plugin")
