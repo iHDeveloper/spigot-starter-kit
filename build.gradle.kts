@@ -8,14 +8,11 @@ plugins {
     id ("com.github.johnrengelman.shadow") version "5.2.0"
 }
 
-group = "com.example"
-version = "0.1"
-
 val server = Server(
         /**
          * Directory of the server
          */
-        dir = File("server")
+        dir = File("${rootProject.projectDir}/server")
 )
 
 val buildTools = BuildTools(
@@ -25,52 +22,97 @@ val buildTools = BuildTools(
 
         // Spigot = true
         // Craftbukkit = false
-        useSpigot = true
+        useSpigot = true,
+
+        // Use local cached dependency (default = false)
+        useLocalDependency = true,
+
+        // The version of the built local dependency
+        localDependencyVersion = "1.8.8-R0.1-SNAPSHOT"
 )
 
-repositories {
-    mavenCentral()
-}
+allprojects {
+    group = "com.example"
+    version = "0.1"
 
-dependencies {
-    // Include the server jar source
-    if (server.jar.exists())
-        compileOnly(files(server.jar.absolutePath))
-    else if (buildTools.serverJar.exists())
-        compileOnly(files(buildTools.serverJar.absolutePath))
-
-    testCompileOnly("junit", "junit", "4.12")
-}
-
-configure<JavaPluginConvention> {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-}
-
-tasks {
-
-    /**
-     * Delete the server after the gradle clean task is done
-     */
-    getByName("clean").doLast {
-        // Delete the server folder
-        server.delete()
+    if (project != rootProject) {
+        apply(plugin = "java")
+        apply(plugin = "de.undercouch.download")
+        apply(plugin = "com.github.johnrengelman.shadow")
     }
 
-    /**
-     * Overwrite the build task to put the compiled jar into the build folder instead of build/libs
-     */
-    build {
-        dependsOn("shadowJar")
+    repositories {
+        mavenCentral()
+        mavenLocal()
+    }
 
-        // Copy the compiled plugin jar from build/libs to build/
-        doLast {
-            copy {
-                val libsDir = buildTools.libsDir
-                from(libsDir)
-                into(libsDir.parent)
+    dependencies {
+        // Include the server jar source
+        if (buildTools.useLocalDependency && buildTools.localDependencyVersion != null) {
+            compileOnly("org.spigotmc:spigot:${buildTools.localDependencyVersion}")
+        } else {
+            if (server.jar.exists()) {
+                compileOnly(files(server.jar.absolutePath))
+            } else if (buildTools.serverJar.exists()) {
+                compileOnly(files(buildTools.serverJar.absolutePath))
+            }
+        }
+
+        testCompileOnly("junit", "junit", "4.12")
+    }
+
+    configure<JavaPluginConvention> {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    tasks {
+        /**
+         * Overwrite the build task to put the compiled jar into the build folder instead of build/libs
+         */
+        build {
+            dependsOn("shadowJar")
+
+            // Copy the compiled plugin jar from build/libs to build/
+            doLast {
+                copy {
+                    val libsDir = File("${project.buildDir}/libs")
+                    from(libsDir)
+                    into(libsDir.parent)
+                }
+            }
+        }
+
+        shadowJar {
+            from("LICENSE")
+
+            val name = "${archiveBaseName.get()}-${archiveVersion.get()}.${archiveExtension.get()}"
+            archiveFileName.set(name)
+        }
+
+        /**
+         * Build the plugin for the server
+         */
+        register("build-plugin") {
+            dependsOn("build")
+            if (project == rootProject) {
+                subprojects.forEach { dependsOn(":${it.name}:build-plugin") }
+            }
+
+            doLast {
+
+                // Copy generated plugin jar into server plugins folder
+                copy {
+                    from(project.buildDir)
+                    into(server.plugins)
+                }
+
+                logger.lifecycle("Built! plugins/${shadowJar.get().archiveFileName.get()}")
             }
         }
     }
+}
+
+tasks {
 
     /**
      *  Setup the workspace to develop the plugin
@@ -86,7 +128,7 @@ tasks {
      */
     register<Download>("download-build-tools") {
         onlyIf {
-            !buildTools.file.exists() && !server.jar.exists()
+            !buildTools.useLocalDependency && !buildTools.file.exists() && !server.jar.exists()
         }
 
         val temp = buildTools.buildDir
@@ -113,7 +155,7 @@ tasks {
         dependsOn("download-build-tools")
 
         onlyIf {
-            !server.jar.exists()
+            !buildTools.useLocalDependency && !server.jar.exists()
         }
 
         doLast {
@@ -137,7 +179,7 @@ tasks {
         dependsOn("run-build-tools")
 
         onlyIf {
-            !server.exists
+            !buildTools.useLocalDependency && !server.exists
         }
 
         server.mkdir()
@@ -193,23 +235,6 @@ tasks {
     }
 
     /**
-     * Build the plugin for the server
-     */
-    register("build-plugin") {
-        dependsOn("build-server")
-        dependsOn("build")
-
-        doLast {
-
-            // Copy generated plugin jar into server plugins folder
-            copy {
-                from(buildTools.libsDir)
-                into(server.plugins)
-            }
-        }
-    }
-
-    /**
      * Run the server with the plugin on it
      */
     register("run") {
@@ -232,15 +257,6 @@ tasks {
             }
         }
     }
-
-    /**
-     * Configure the generated shadow jar
-     */
-    shadowJar {
-        val name = "${archiveBaseName.get()}-${archiveVersion.get()}.${archiveExtension.get()}"
-        archiveFileName.set(name)
-    }
-
 }
 
 /**
@@ -298,11 +314,12 @@ fun printIntro() {
 
 class BuildTools (
         val minecraftVersion: String,
-        val useSpigot: Boolean
+        val useSpigot: Boolean,
+        val useLocalDependency: Boolean,
+        val localDependencyVersion: String? = null
 ) {
     val buildDir = File(".build-tools")
     val file = File(buildDir, "build-tools.jar")
-    val libsDir = File("build/libs/")
 
     val serverJar = if (useSpigot) {
         File(buildDir, "spigot-${minecraftVersion}.jar")

@@ -12,6 +12,7 @@ The goal of this starter kit is to help make spigot plugin easy in development a
 - [Test the plugin](#test-the-plugin)
 - [Use Craftbukkit](#use-craftbukkit)
 - [Change Minecraft Version](#change-server-version)
+- [Use local dependency](#use-local-dependency)
 
 ## Getting Started
 1. Clone the repository
@@ -118,3 +119,24 @@ If you want to change the Minecraft server version.
 - Delete `.build-tools` directory by executing `rm -rf .build-tools/`
     > If `.build-tools/` exists in your kit workspace
 - Run `./gradlew setup`
+
+## Use local dependency
+If you want to use the local dependency to avoid rebuilding the build tools in your machine.
+You need to run the build tools at least one time to have the local dependency cached.
+
+**You need to specify the version of the local dependency**
+- Edit `build.gradle.kts`
+    ```kotlin
+    val buildTools = BuildTools(
+    
+            // Use local cached dependency (default = false)
+            useLocalDependency = true,
+    
+            // The version of the built local dependency
+            localDependencyVersion = "1.8.8-R0.1-SNAPSHOT"
+    
+            /* ... */
+    )
+    ```
+- **Note:** You don't need to delete `.build-tools` while enabling this option.
+- **Fun Fact:** You don't need `.build-tools` anymore (unless you changed the Minecraft version)
