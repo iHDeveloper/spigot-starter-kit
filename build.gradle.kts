@@ -8,14 +8,16 @@ plugins {
     id ("com.github.johnrengelman.shadow") version "5.2.0"
 }
 
-val server = Server(
+val useLocalDependency: String by project
+
+internal val server = Server(
         /**
          * Directory of the server
          */
         dir = File("${rootProject.projectDir}/server")
 )
 
-val buildTools = BuildTools(
+internal val buildTools = BuildTools(
 
         // Server Version
         minecraftVersion = "1.8.8",
@@ -24,8 +26,8 @@ val buildTools = BuildTools(
         // Craftbukkit = false
         useSpigot = true,
 
-        // Use local cached dependency (default = false)
-        useLocalDependency = true,
+        // Use local cached dependency (default = true)
+        useLocalDependency = if (project.hasProperty("useLocalDependency")) useLocalDependency.toBoolean() else true,
 
         // The version of the built local dependency
         localDependencyVersion = "1.8.8-R0.1-SNAPSHOT"
@@ -48,7 +50,7 @@ allprojects {
 
     dependencies {
         // Include the server jar source
-        if (buildTools.useLocalDependency && buildTools.localDependencyVersion != null) {
+        if (buildTools.useLocalDependency) {
             compileOnly("org.spigotmc:spigot:${buildTools.localDependencyVersion}")
         } else {
             if (server.jar.exists()) {
@@ -102,7 +104,7 @@ allprojects {
 
                 // Copy generated plugin jar into server plugins folder
                 copy {
-                    from(project.buildDir)
+                    from(file("${project.buildDir}/libs"))
                     into(server.plugins)
                 }
 
@@ -158,7 +160,7 @@ tasks {
         dependsOn("download-build-tools")
 
         onlyIf {
-            !buildTools.useLocalDependency && !server.jar.exists()
+            !buildTools.useLocalDependency && !buildTools.serverJar.exists()
         }
 
         doLast {
@@ -182,7 +184,7 @@ tasks {
         dependsOn("run-build-tools")
 
         onlyIf {
-            !buildTools.useLocalDependency && !server.exists
+            !buildTools.useLocalDependency && (!server.exists || (server.exists && server.jar.exists()))
         }
 
         server.mkdir()
@@ -194,7 +196,9 @@ tasks {
             // Wait for 2 seconds to realise the message
             try {
                 Thread.sleep(2 * 1000)
-            } catch (e: Exception) {}
+            } catch (e: InterruptedException) {
+                logger.warn("Sleep has been interrupted!")
+            }
 
             // Since the process didn't stop
             // This means the user indicates to agree on the Minecraft EULA
@@ -315,11 +319,11 @@ fun printIntro() {
     }
 }
 
-class BuildTools (
+internal class BuildTools (
         val minecraftVersion: String,
         val useSpigot: Boolean,
         val useLocalDependency: Boolean,
-        val localDependencyVersion: String? = null
+        val localDependencyVersion: String
 ) {
     val buildDir = File(".build-tools")
     val file = File(buildDir, "build-tools.jar")
@@ -334,7 +338,7 @@ class BuildTools (
 /**
  * Help making the server and structuring it
  */
-class Server(
+internal class Server(
         val dir: File = File("server")
 ) {
     /**
